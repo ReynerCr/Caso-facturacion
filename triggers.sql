@@ -1,10 +1,22 @@
 -- Script de creacion de triggers
+/*
+    Creado por los equipos 3 y 4
+    Base de datos I sección 1 2021-3
+    
+    Autores:
+    Camargo Meaury, Franklin Josue; C.I: V.-27655989
+    Contreras Rojas, Reyner David;  C.I: V.-26934400
+    Vargas Rueda, Brandon Jose; C.I: V.-26566047
+*/
 
 SET SERVEROUTPUT ON;
 
 COMMIT;
+SAVEPOINT origin;
 
--- 1. Tabla facturas
+-- 1. Tabla facturas  ------------------------------------------------------
+
+  --------------------------------------------------------------------------
 -- En teoria este trigger no es necesario, ya se verifica porque es FK de una PK
 -- Trigger BEFORE INSERT OR UPDATE de facturas
 CREATE OR REPLACE TRIGGER tr_facturas
@@ -33,7 +45,11 @@ INSERT INTO facturas (codfac, fecha, codcli, iva, dto)
     VALUES (3000,to_date('16-11-1999','dd-mm-yyyy'),95,7,0);     
 UPDATE facturas SET codcli = 95 WHERE codfac = 1;
 
+
+
 -- 2. Tabla lineas_fac  ------------------------------------------------------
+
+  ----------------------------------------------------------------------------
 -- Trigger BEFORE INSERT OR UPDATE de lineas_fac
 CREATE OR REPLACE TRIGGER tr_lin_fac_before
 BEFORE INSERT OR UPDATE ON lineas_fac
@@ -68,19 +84,27 @@ END;
 DELETE FROM facturas WHERE codfac = 500;
 DELETE FROM lineas_fac WHERE codfac = 500 AND linea = 1; 
 
-    --INSERT
+
 INSERT INTO facturas (codfac, fecha, codcli, iva, dto) VALUES (500,sysdate,102,0,0);
+SELECT * FROM articulos WHERE codart = 'P001'; -- Comprobar que codart no exista
 SELECT * FROM articulos WHERE codart = 'T10027'; -- Comprobar datos de stock
+SELECT * FROM lineas_fac WHERE codfac = 500;
+
+    --INSERT
+INSERT INTO lineas_fac (codfac, linea, cant, codart, precio, dto)
+    VALUES (500,1,8,'P001',7239,0); -- prueba de codart no existente
 INSERT INTO lineas_fac (codfac, linea, cant, codart, precio, dto)
     VALUES (500,1,8,'T10027',7239,0); -- prueba de stock insuficiente
 INSERT INTO lineas_fac (codfac, linea, cant, codart, precio, dto)
     VALUES (500,1,7,'T10027',7239,0); -- valido
     
-    -- Prueba de codigo de articulo invalido (no existente)
-UPDATE lineas_fac SET codart = 'P001' WHERE codart = 'T10027' AND linea = 1;
+    --UPDATE
+-- Prueba de codigo de articulo invalido (no existente)
+UPDATE lineas_fac SET codart = 'P001' WHERE codfac = 500 AND linea = 1;
 UPDATE lineas_fac SET codart = NULL WHERE codart = 'T10027' AND linea = 1;
 
 
+  -------------------------------------------------------------------------
 -- Trigger AFTER INSERT OR UPDATE OR DELETE de lineas_fac
 CREATE OR REPLACE TRIGGER tr_lin_fac_after
 AFTER INSERT OR UPDATE OR DELETE ON lineas_fac
@@ -95,17 +119,6 @@ BEGIN
         SET stock = stock + :OLD.cant WHERE codart = :OLD.codart;
     
     ELSIF UPDATING THEN
-        /*
-        IF :NEW.cant > :OLD.cant THEN
-            UPDATE articulos
-            SET stock = stock - (:NEW.cant - :OLD.cant)
-            WHERE :OLD.codart = :NEW.codart;            
-        ELSIF :NEW.cant < :OLD.cant THEN
-            UPDATE articulos
-            SET stock = stock + (:OLD.cant - :NEW.cant)
-            WHERE :OLD.codart = :NEW.codart;
-        END IF;
-        */
         IF (:OLD.cant != :NEW.cant) THEN
             UPDATE articulos
                 SET stock = stock + (:OLD.cant - :NEW.cant)
@@ -129,4 +142,4 @@ UPDATE lineas_fac SET cant = 1 WHERE codfac = 261 AND linea = 6;
     --DELETE
 DELETE FROM lineas_fac WHERE codfac = 261 AND linea = 6;
 
-
+ROLLBACK TO origin;
