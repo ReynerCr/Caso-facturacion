@@ -2,7 +2,7 @@
 
 SET SERVEROUTPUT ON;
 
-commit;
+COMMIT;
 
 -- 1. Tabla facturas
 -- En teoria este trigger no es necesario, ya se verifica porque es FK de una PK
@@ -25,14 +25,17 @@ END;
 
 -- Pruebas basicas de funcionalidad
 SELECT * FROM clientes WHERE codcli = 95; -- Comprobar que cliente no existe
+
+    --DELETE
+DELETE FROM facturas WHERE codfac = 3000;
+
 INSERT INTO facturas (codfac, fecha, codcli, iva, dto)
     VALUES (3000,to_date('16-11-1999','dd-mm-yyyy'),95,7,0);     
 UPDATE facturas SET codcli = 95 WHERE codfac = 1;
 
-
 -- 2. Tabla lineas_fac  ------------------------------------------------------
 -- Trigger BEFORE INSERT OR UPDATE de lineas_fac
-CREATE OR REPLACE TRIGGER tr_lin_fac_bef
+CREATE OR REPLACE TRIGGER tr_lin_fac_before
 BEFORE INSERT OR UPDATE ON lineas_fac
 FOR EACH ROW
 DECLARE
@@ -60,12 +63,12 @@ BEGIN
 END;
 /
 
-/* --DELETE
+-- Pruebas basicas de funcionalidad
+    --DELETE
 DELETE FROM facturas WHERE codfac = 500;
 DELETE FROM lineas_fac WHERE codfac = 500 AND linea = 1; 
-*/
 
--- Pruebas basicas de funcionalidad
+    --INSERT
 INSERT INTO facturas (codfac, fecha, codcli, iva, dto) VALUES (500,sysdate,102,0,0);
 SELECT * FROM articulos WHERE codart = 'T10027'; -- Comprobar datos de stock
 INSERT INTO lineas_fac (codfac, linea, cant, codart, precio, dto)
@@ -78,7 +81,52 @@ UPDATE lineas_fac SET codart = 'P001' WHERE codart = 'T10027' AND linea = 1;
 UPDATE lineas_fac SET codart = NULL WHERE codart = 'T10027' AND linea = 1;
 
 
--- NOTAS PENDIENTES
--- Falta trigger o triggers de AFTER
--- crear procedure o un bloque anonimo y agrupar los dos triggers de lineas_fac?????
--- anyadir commits al final de las actualizaciones o inserciones DENTRO del trigger de lineas_fac
+-- Trigger AFTER INSERT OR UPDATE OR DELETE de lineas_fac
+CREATE OR REPLACE TRIGGER tr_lin_fac_after
+AFTER INSERT OR UPDATE OR DELETE ON lineas_fac
+FOR EACH ROW
+BEGIN
+    IF INSERTING THEN
+        UPDATE articulos
+        SET stock = stock - :NEW.cant WHERE codart = :NEW.codart;
+        
+    ELSIF DELETING THEN
+        UPDATE articulos
+        SET stock = stock + :OLD.cant WHERE codart = :OLD.codart;
+    
+    ELSIF UPDATING THEN
+        /*
+        IF :NEW.cant > :OLD.cant THEN
+            UPDATE articulos
+            SET stock = stock - (:NEW.cant - :OLD.cant)
+            WHERE :OLD.codart = :NEW.codart;            
+        ELSIF :NEW.cant < :OLD.cant THEN
+            UPDATE articulos
+            SET stock = stock + (:OLD.cant - :NEW.cant)
+            WHERE :OLD.codart = :NEW.codart;
+        END IF;
+        */
+        IF (:OLD.cant != :NEW.cant) THEN
+            UPDATE articulos
+                SET stock = stock + (:OLD.cant - :NEW.cant)
+                WHERE :OLD.codart = :NEW.codart;
+        END IF;
+    END IF;
+END;
+/
+
+-- Pruebas basicas de funcionalidad
+SELECT * FROM articulos WHERE codart = 'T10026';
+SELECT * FROM lineas_fac WHERE codfac = 261 AND linea = 6;
+
+    --INSERT
+INSERT INTO lineas_fac (codfac, linea, cant, codart, precio, dto)
+    VALUES (261,6,3,'T10026',74,1);
+    --UPDATE con cantidad MAYOR a la que ya existia
+UPDATE lineas_fac SET cant = 5 WHERE codfac = 261 AND linea = 6;
+    --UPDATE con cantidad MENOR a la que ya existia
+UPDATE lineas_fac SET cant = 1 WHERE codfac = 261 AND linea = 6;
+    --DELETE
+DELETE FROM lineas_fac WHERE codfac = 261 AND linea = 6;
+
+
